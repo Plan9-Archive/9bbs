@@ -1,0 +1,2 @@
+#!/bin/rc
+nostromoname=your@email.com /usr/you/9bbs/bin/9bbs -f lobby -m /usr/you/9bbs -p 9000 >>[2]/sys/log/9bbs

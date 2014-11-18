@@ -1,0 +1,33 @@
+#!/bin/rc
+rfork e
+fn checkdir{
+	if(! test -d $1){
+		echo $1 does not exist >[1=2]
+		exit checkdir
+	}
+}
+fn seconds2rfc822{ date `{cat} | awk '{print $1 ", " $3 " " $2 " " $6 " " $4 " " $5}' }
+fn usage{
+	echo usage: 9bbs2nostromo src dst >[1=2]
+	exit usage
+}
+if(~ $#2 0 || ~ $#3 1)
+	usage
+src=$1
+dest=$2
+checkdir $src
+checkdir $dest
+builtin cd $src
+file=1
+for(i in `{ls | grep -e '^[0-9]'}){
+	{
+		echo From: `{cat $i/from}
+		echo X-Room: `{cat name}
+		echo Date: `{echo $i | seconds2rfc822}
+		echo X-Date-N: $i
+		echo
+		cat $i/body
+	} >$dest/$file
+	echo $i '->' $file
+	file=`{echo $file^+1 | bc}
+}

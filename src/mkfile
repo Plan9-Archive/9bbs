@@ -1,0 +1,7 @@
+</$objtype/mkfile
+BIN=/$objtype/bin
+TARG=np
+
+OFILES=np.$O
+
+</sys/src/cmd/mkone

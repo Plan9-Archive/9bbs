@@ -1,0 +1,513 @@
+#!/bin/rc
+# EXT. NOSTROMO
+rfork en
+ramfs
+9pid=$pid
+if(~ $#nostromoname 0)
+	nostromoname=glenda@$sysname
+argv0=$0
+if(~ $#editor 0)
+	editor='sam -d'
+fn changepassword{
+	echo -n $* 'password: '
+	password=`{read}
+	if(~ $#password 0)
+		terminate hungup
+	password=`{echo $"password | tr -d \015}
+	while(! ~ $#password 1){
+		echo
+		echo !empty passwords not allowed, try again.
+		echo -n $* 'password: '
+		password=`{read}
+		if(~ $#password 0)
+			terminate hungup
+		password=`{echo $"password | tr -d \015}
+	}
+	echo $"password >$mnt/etc/users/$username/password
+}
+fn checkroom{
+	croom=`{echo $1 | sed 's/\//\\\//g'}
+	cn=`{diff <{basename `{grep -e $croom'\/[0-9]+$' $mnt/etc/rooms}} <{basename `{grep -e $croom'\/[0-9]+$' /tmp/rooms}}}
+	if(~ $#cn 0)
+		echo $#posts of $#posts messages
+	if not if(~ $cn(6) '')
+		echo 1 of $cn(3) messages
+	if not
+		echo $cn(6) of $cn(3) messages
+}
+fn delete{
+	if(test -f $mnt/rooms/$room/$1){
+		if(~ $logged_user `{sed '1q; s/From: //g' $mnt/rooms/$room/$1}){
+			{
+				awk '/^$/{exit} {print}' $mnt/rooms/$room/$1
+				echo
+				echo DELETED `{date}
+			} >/tmp/$1
+			cat /tmp/$1 >$mnt/rooms/$room/$1
+		}
+		if not
+			echo !permission denied
+	}
+	if not
+		echo !$1 does not exist
+}
+fn dumpuser{
+	cat /tmp/delimiter >$mnt/etc/users/$logged_user/delimiter
+	echo $plines >$mnt/etc/users/$logged_user/plines
+	echo $room >$mnt/etc/users/$logged_user/room
+	cat /tmp/rooms >$mnt/etc/users/$logged_user/rooms
+	cat /tmp/sig >$mnt/etc/users/$logged_user/sig
+}
+fn edit{
+	@{
+		rfork en
+		dirs=(lib rc/lib sys/lib sys/man tmp)
+		programs=(awk cat col date dict doctype echo fmt fortune grep ls man p rc sam sed sig sort tail test tr troff uniq)
+		ramfs -m $mnt/root
+		builtin cd $mnt/root
+		mkdir -p $dirs
+		for(i in $dirs)
+			bind /$i $i
+		mkdir bin
+		touch bin/$programs
+		for(i in $programs)
+			bind /bin/$i bin/$i
+		mkdir dev
+		>dev/null
+		bind /dev/null dev/null
+		mkdir env
+		bind -c '#e' env
+		bind -c /tmp $mnt/root/tmp
+		bind $mnt/root /
+		rfork m
+		eval $editor $* >[2=1]
+		echo
+		echo !now, hit enter twice
+		echo
+	}
+}
+fn editpost{
+	daten=`{date -n}
+	{
+		echo From: $logged_user
+		echo To: $room
+		echo Date: `{echo $daten | seconds2rfc822}
+		echo X-Date-N: $daten
+		echo
+		if(! ~ $#reply 0){
+			echo re $reply
+			echo
+		}
+	} >/tmp/post.header
+	>/tmp/post.body
+	cat | tr -d \015 | edit /tmp/post.body >[2=1]
+	yn post? postpost
+}
+fn f{ du -a $* | sed 's/^.*	//g' }
+fn getpost{
+	groom=`{basename `{grep -e `{echo $1 | sed 's/\//\\\//g'}^'\/[0-9]+$' /tmp/rooms}}
+	if(~ $#groom 0)
+		groom=1
+	echo $groom
+}
+fn getposts{ ls | grep -e '^[0-9]+$' | sort -n | tail -$maxposts }
+fn goto{
+	nroom=`{grep $1 $mnt/etc/roomlist | sed 1q} # partial matches ok
+	if(~ $#nroom 1 && grep -s $nroom $mnt/etc/roomlist){
+		if(grep -s -e '^[0-9]+$' <{ls -p $mnt/rooms/$nroom}){
+			syncroom $room $post /tmp/rooms
+			cat /tmp/rooms >$mnt/etc/users/$logged_user/rooms
+			room=$nroom
+			builtin cd $mnt/rooms/$room
+			posts=`{getposts}
+			post=`{getpost $room}
+			checkroom $room
+			prompt=$room/$post
+			go=()
+		}
+		if not
+			echo !$nroom contains no messages
+	}
+	if not
+		echo !$1 does not exist
+}
+fn loaduser{
+	cat $mnt/etc/users/$logged_user/delimiter >/tmp/delimiter
+	plines=`{cat $mnt/etc/users/$logged_user/plines}
+	room=`{cat $mnt/etc/users/$logged_user/room}
+	cat $mnt/etc/users/$logged_user/rooms >/tmp/rooms
+	cat $mnt/etc/users/$logged_user/sig >/tmp/sig
+	builtin cd $mnt/rooms/$room
+	roomlist=`{cat $mnt/etc/roomlist}
+	posts=`{getposts}
+	post=`{getpost $room}
+	checkroom $room
+}
+fn login{
+	echo login as new to create an account
+	echo
+	echo -n 'username: '
+	username=`{read}
+	if(~ $#username 0)
+		terminate hungup
+	username=`{echo $"username | tr -d \015}
+	if(~ $username new)
+		newuser
+	if not{
+		echo -n 'password: '
+		password=`{read}
+		if(~ $#password 0)
+			terminate hungup
+		password=`{echo $"password | tr -d \015}
+		if(test -d $mnt/etc/users/$username && ~ `{cat $mnt/etc/users/$username/password} $password){
+			logged_user=$username
+			loaduser
+			date=`{date -n}
+			echo $date >$mnt/etc/users/$logged_user/logged_in
+			upasname=$nostromoname {
+				echo `{date} $logged_user login
+				echo
+			} | mail -s '9bbs: '$"logged_user' login' $nostromoname
+			echo `{date $date} $logged_user login >[1=2]
+		}
+		if not{
+			upasname=$nostromoname {
+				echo `{date} $username login failed
+				echo
+			} | mail -s '9bbs: '$"username' login failed' $nostromoname
+			terminate $username login failed
+		}
+	}
+}
+fn logout{
+	syncroom $room $post /tmp/rooms
+	dumpuser
+	rm $mnt/etc/users/$logged_user/logged_in
+	cat $mnt/etc/goodbye
+}
+fn newuser{
+	invalid='[^a-zA-Z0-9_\-\.]'
+	echo
+	echo -n 'new username: '
+	username=`{read}
+	if(~ $#username 0)
+		terminate hungup
+	username=`{echo $"username | tr -d \015}
+	if(! ~ $#username 1 || grep -s -e $invalid <{echo $username}){
+		echo '!invalid username, valid characters are: a-z A-Z 0-9 _ - .'
+		newuser
+	}
+	if not if(test -d $mnt/etc/users/$username){
+		echo
+		echo '!username already exists'
+		newuser
+	}
+	if not{
+		mkdir $mnt/etc/users/$username
+		changepassword
+		date >$mnt/etc/users/$username/created
+		>$mnt/etc/users/$username/delimiter
+		echo 22 >$mnt/etc/users/$username/plines
+		echo lobby >$mnt/etc/users/$username/room
+		sed 's/$/\/1/g' $mnt/etc/roomlist >$mnt/etc/users/$username/rooms
+		echo $username >$mnt/etc/users/$username/sig
+		logged_user=$username
+		upasname=$nostromoname {
+			echo `{date} $logged_user create
+			echo
+		} | mail -s '9bbs: '$"logged_user' create' $nostromoname
+		echo `{date} $logged_user create >[1=2]
+		loaduser >/dev/null
+		date >$mnt/etc/users/$logged_user/logged_in
+		echo `{date} $logged_user login >[1=2]
+		cat $mnt/etc/welcome | np -$plines
+		plines=80 printhelp | np -$plines
+	}
+}
+fn nshift{ shift; echo $* }
+fn postpost{
+	ppost=`{echo `{ls -p $mnt/rooms/$room | grep -e '^[0-9]+$' | sort -n | tail -1}^+1 | bc } #POLE POSITION
+	{
+		cat /tmp/post.header /tmp/post.body
+		echo
+		cat /tmp/sig
+	} >$mnt/rooms/$room/$ppost #WELCOME 2 THE RATRACE
+	syncroom $room $ppost $mnt/etc/rooms
+}
+fn printg{
+	cat /tmp/delimiter
+	glines=`{diff /tmp/rooms $mnt/etc/rooms | grep -e '^(<|>)' | sort -t' ' +1}
+	while(! ~ $#glines 0){
+		groom=`{basename -d $glines(2)}
+		gupost=`{basename $glines(2)}
+		gpost=`{basename $glines(4)}
+		echo '  g	'$"groom'	# '^`{echo $gpost^-$gupost | bc | sed 's/-//g'} unread messages
+		for(i in `{seq 1 4})
+			glines=`{nshift $glines}
+
+	}
+	cat /tmp/delimiter
+}
+fn printhelp{
+cat /tmp/delimiter
+echo '[0-9]+	print specified message
+b		back
+c		change password
+d [...]		delete message
+D [...]		view, set message delimiter
+>D		truncate message delimiter
+e		enter message
+f		jump to first message
+g [...]		list rooms with unread messages, go to specified room
+h, help		print this help message
+k [...]		print roomlist or grep for specified regexp
+l		jump to last message
+L ...		set number of lines to print before engaging pager (enter to continue, q to quit)
+man ...		read man page (man sam for help with the editor)
+n		next
+p, re [...]		print message with minimal headers
+P [...]		print message with full headers
+r [...]		reply to message
+q		quit
+S [...]		view, set signature
+>S		truncate signature
+u		list users
+w		who is online
+y		synchronize message list for current room
+z		mark all messages (on the entire bbs) as read
+" [...]		print message in quoted form, suitable for reply
+?		print debug information'
+cat /tmp/delimiter
+}
+fn printp{
+	if(test -f $mnt/rooms/$room/$1){
+		syncroom $room $1 /tmp/rooms
+		cat /tmp/delimiter
+		<$1 grep -v -e '^X-.*: ' | fmt -j -l 80 | np -$plines
+		echo
+		prompt=$room/$1
+	}
+}
+fn printpp{
+	if(test -f $mnt/rooms/$room/$1){
+		syncroom $room $1 /tmp/rooms
+		cat /tmp/delimiter
+		<$1 fmt -j -l 80 | np -$plines
+		echo
+		prompt=$room/$1
+	}
+}
+fn printq{
+	if(test -f $mnt/rooms/$room/$1){
+		cat /tmp/delimiter
+		<$1 fmt -j -l 80 | sed 's/^/> /g; s/^> >/>>/g' | grep -v -e '^X-Date-N' | np -$plines
+		echo
+		prompt=$room/$1
+	}
+}
+fn printw{
+	for(i in `{ls -t $mnt/etc/users/*/logged_in}){
+		who=`{basename `{basename -d `{echo $i | sed 's/\logged_in//g'}}}
+		echo -n $who
+		echo -n '					'
+		echo `{date `{cat $mnt/etc/users/$who/logged_in}}
+	}
+}
+fn seconds2rfc822{ date `{cat} | awk '{print $1 ", " $3 " " $2 " " $6 " " $4 " " $5}' }
+fn syncroom{
+	{
+		sroom=`{echo $1 | sed 's/\//\\\//g'}
+		echo ',s/^'$sroom'\/[0-9]+$/'$sroom'\/'$2'/g'
+		echo w
+		echo q
+	} | sam -d $3 >[2]/dev/null
+}
+fn terminate{
+	if(! ~ $#logged_user 0)
+		logout
+	echo `{date} $logged_user $* >[1=2]
+	echo
+	echo $*
+	echo
+	exit terminate
+}
+fn yn{
+	echo -n $1 '(y, n) '
+	yn=`{read}
+	if(~ $#yn 0)
+		terminate hungup
+	yn=`{echo $"yn | tr -d \015}
+	switch($yn){
+	case y
+		eval $*(2-)
+	case n
+		;
+	case *
+		eval yn $*
+	}
+}
+fn usage{
+	echo usage: $argv0 '[ -f room ] [ -m mountpoint ] [ -p maxposts ]' >[1=2]
+	exit usage
+}
+while(~ $1 -*){
+	switch($1){
+	case -f
+		room=`{echo $2 | sed 's/\./\//g'}
+		shift
+	case -m
+		mnt=$2
+		shift
+	case -p
+		maxposts=$2
+		shift
+	case *
+		usage
+	}
+	shift
+}
+if(! ~ $#* 0)
+	usage
+if(~ $#mnt 0)
+	usage
+if(~ $#maxposts 0)
+	maxposts=9000
+if(~ $#room 0)
+	room=lobby
+cat $mnt/etc/motd
+login
+if(~ $#plines 0)
+	plines=22
+prompt=$room/$post
+go=()
+if(~ $#post 0)
+	post=$posts(1)
+while(! ~ $status terminate){
+	echo -n $"prompt': '
+	cmd=`{read}
+	if(~ $#cmd 0)
+		terminate hungup
+	cmd=`{echo $"cmd | tr -d \015 }
+	switch($cmd){
+	case [0-9]*
+		if(grep -s -e '^[0-9]+$' <{echo $cmd(1)}){
+			post=$cmd(1)
+			printp $post
+		}
+	case b
+		if(! ~ $post $posts(1)){
+			post=`{echo $post^-1 | bc}
+			printp $post
+		}
+	case c
+		echo -n 'new '
+		changepassword
+	case d
+		yn 'delete '$"post'?' delete $post
+	case d' '*
+		post=`{nshift $cmd | awk '{print $1}'}
+		yn 'delete '$"post'?' delete $post
+	case D
+		cat /tmp/delimiter
+	case D' '*
+		echo `{nshift $cmd} >/tmp/delimiter
+	case '>D'
+		>/tmp/delimiter
+	case e
+		editpost
+		posts=`{getposts}
+	case f
+		post=$posts(1)
+		printp $post
+	case g
+		printg | np -$plines
+	case g' '*
+		goto `{nshift $cmd | awk '{print $1}'}
+	case h help
+		printhelp
+	case k
+		sed 's/^/  g	/g' $mnt/etc/roomlist | np -$plines
+	case k' '*
+		cat /tmp/delimiter
+		grep -e `{nshift $cmd} $mnt/etc/roomlist | sed 's/^/  g	/g' | np -$plines
+		cat /tmp/delimiter
+	case l
+		post=$posts($#posts)
+		printp $post
+	case L' '*
+		lines=`{nshift $cmd}
+		if(grep -s -e '^[0-9]+$' <{echo $lines})
+			plines=$lines
+	case man' '*
+		man $cmd(2) | np -$plines
+	case p re
+		printp $post
+	case p' '* re' '* Re:' '*
+		post=`{nshift $cmd | awk '{print $1}' | sed 's/://g'}
+		printp $post
+	case P
+		printpp $post
+	case P' '*
+		post=`{nshift $cmd | awk '{print $1}'}
+		printpp $post
+	case q
+		yn quit? 'terminate logout'
+	case r' '*
+		post=`{nshift $cmd | awk '{print $1}'}
+		reply=$post editpost
+		posts=`{getposts}
+	case r
+		reply=$post editpost
+		posts=`{getposts}
+	case S
+		cat /tmp/sig
+	case S' '*
+		echo `{nshift $cmd} >/tmp/sig
+	case '>S'
+		>/tmp/sig
+	case u
+		cat /tmp/delimiter
+		ls -p $mnt/etc/users | sort | np -$plines
+		cat /tmp/delimiter
+	case w
+		cat /tmp/delimiter
+		printw
+		cat /tmp/delimiter
+	case y
+		syncroom $room $post /tmp/rooms
+		cat /tmp/rooms >$mnt/etc/users/$logged_user/rooms
+		posts=`{getposts}
+		checkroom $room
+	case z
+		yn 'zoom all rooms to the latest message?' cp $mnt/etc/rooms /tmp/rooms
+	case '"'
+		printq $post
+	case '" '*
+		post=`{nshift $cmd | awk '{print $1}'}
+		printq $post
+	case '?'
+		{
+			echo mnt: $mnt
+			echo room: $room
+			echo maxposts: $maxposts
+			echo posts: $posts
+			echo post: $post
+			echo delimiter: `{cat /tmp/delimiter}
+			echo plines: $plines
+			echo sig: `{cat /tmp/sig}
+		} | np -$plines
+
+	case n *
+		if(~ $post $posts(1) && ~ $#go 0){
+			go=1
+			printp $post
+		}
+		if not if(! ~ $post $posts($#posts)){
+			go=1
+			post=`{echo $post^+1 | bc}
+			if(test $post -gt $posts($#posts))
+				post=$posts($#posts)
+			printp $post
+		}
+	}	
+}
