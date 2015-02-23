@@ -224,7 +224,6 @@ fn newuser{
 		plines=80 printhelp | np -$plines
 	}
 }
-fn nshift{ shift; echo $* }
 fn postpost{
 	ppost=`{echo `{ls -p $mnt/rooms/$room | grep -e '^[0-9]+$' | sort -n | tail -1}^+1 | bc } #POLE POSITION
 	{
@@ -243,7 +242,7 @@ fn printg{
 		gpost=`{basename $glines(4)}
 		echo '  g	'$"groom'	# '^`{echo $gpost^-$gupost | bc | sed 's/-//g'} unread messages
 		for(i in `{seq 1 4})
-			glines=`{nshift $glines}
+			glines=$glines(2-)
 
 	}
 	cat /tmp/delimiter
@@ -405,12 +404,12 @@ while(! ~ $status terminate){
 	case d
 		yn 'delete '$"post'?' delete $post
 	case d' '*
-		post=`{nshift $cmd | awk '{print $1}'}
+		post=$cmd(2)
 		yn 'delete '$"post'?' delete $post
 	case D
 		cat /tmp/delimiter
 	case D' '*
-		echo `{nshift $cmd} >/tmp/delimiter
+		echo `{echo $cmd(2-)} >/tmp/delimiter
 	case '>D'
 		>/tmp/delimiter
 	case e
@@ -422,20 +421,20 @@ while(! ~ $status terminate){
 	case g
 		printg | np -$plines
 	case g' '*
-		goto `{nshift $cmd | awk '{print $1}'}
+		goto $cmd(2)
 	case h help
 		printhelp
 	case k
 		sed 's/^/  g	/g' $mnt/etc/roomlist | np -$plines
 	case k' '*
 		cat /tmp/delimiter
-		grep -e `{nshift $cmd} $mnt/etc/roomlist | sed 's/^/  g	/g' | np -$plines
+		grep -e `{echo $cmd(2-)} $mnt/etc/roomlist | sed 's/^/  g	/g' | np -$plines
 		cat /tmp/delimiter
 	case l
 		post=$posts($#posts)
 		printp $post
 	case L' '*
-		lines=`{nshift $cmd}
+		lines=`{echo $cmd(2-)}
 		if(grep -s -e '^[0-9]+$' <{echo $lines})
 			plines=$lines
 	case man' '*
@@ -443,17 +442,17 @@ while(! ~ $status terminate){
 	case p re
 		printp $post
 	case p' '* re' '* Re:' '*
-		post=`{nshift $cmd | awk '{print $1}' | sed 's/://g'}
+		post=`{echo $cmd(2) | sed 's/://g'}
 		printp $post
 	case P
 		printpp $post
 	case P' '*
-		post=`{nshift $cmd | awk '{print $1}'}
+		post=$cmd(2)
 		printpp $post
 	case q
 		yn quit? 'terminate logout'
 	case r' '*
-		post=`{nshift $cmd | awk '{print $1}'}
+		post=$cmd(2)
 		reply=$post editpost
 		posts=`{getposts}
 	case r
@@ -462,7 +461,7 @@ while(! ~ $status terminate){
 	case S
 		cat /tmp/sig
 	case S' '*
-		echo `{nshift $cmd} >/tmp/sig
+		echo `{echo $cmd(2-)} >/tmp/sig
 	case '>S'
 		>/tmp/sig
 	case u
@@ -483,7 +482,7 @@ while(! ~ $status terminate){
 	case '"'
 		printq $post
 	case '" '*
-		post=`{nshift $cmd | awk '{print $1}'}
+		post=$cmd(2)
 		printq $post
 	case '?'
 		{
