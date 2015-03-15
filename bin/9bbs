@@ -1,7 +1,7 @@
 #!/bin/rc
 # EXT. NOSTROMO
 rfork en
-ramfs
+ramfs -p
 9pid=$pid
 if(~ $#nostromoname 0)
 	nostromoname=glenda@$sysname
@@ -63,7 +63,7 @@ fn edit{
 		rfork en
 		dirs=(lib rc/lib sys/lib sys/man tmp)
 		programs=(awk cat col date dict doctype echo fmt fortune grep ls man p rc sam sed sig sort tail test tr troff uniq)
-		ramfs -m $mnt/root
+		ramfs -p -m $mnt/root
 		builtin cd $mnt/root
 		mkdir -p $dirs
 		for(i in $dirs)
