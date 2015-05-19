@@ -4,9 +4,13 @@ log:V:
 	cp tcp666 /rc/bin/service
 
 perms:V:
-	for(i in `{du -a etc/users etc/rooms rooms | sed 's/^.*	//g'}){
+	for(i in `{du -a etc/users | sed 's/^.*	//g'}){
 		chgrp none $i
-		chmod g+w $i
+		chmod 770 $i
+	}
+	for(i in `{du -a etc/rooms rooms | sed 's/^.*	//g'}){
+		chgrp none $i
+		chmod 775 $i
 	}
 
 web:V:
