@@ -1,4 +1,5 @@
 #!/bin/rc
+# 2015-09-03T01:15:30-0400
 # EXT. NOSTROMO
 rfork en
 ramfs -p
@@ -251,7 +252,7 @@ fn printhelp{
 cat /tmp/delimiter
 echo '[0-9]+	print specified message
 b		back
-c		change password
+C		change password
 d [...]		delete message
 D [...]		view, set message delimiter
 >D		truncate message delimiter
@@ -398,7 +399,7 @@ while(! ~ $status terminate){
 			post=`{echo $post^-1 | bc}
 			printp $post
 		}
-	case c
+	case C
 		echo -n 'new '
 		changepassword
 	case d
