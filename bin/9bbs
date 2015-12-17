@@ -1,5 +1,5 @@
 #!/bin/rc
-# 2015-09-03T01:15:30-0400
+# 2015-12-16T23:31:35-0500
 # EXT. NOSTROMO
 rfork en
 ramfs -p
@@ -166,7 +166,7 @@ fn login{
 			date=`{date -n}
 			echo $date >$mnt/etc/users/$logged_user/logged_in
 			upasname=$nostromoname {
-				echo `{date} $logged_user login
+				echo `{date $date} $logged_user login
 				echo
 			} | mail -s '9bbs: '$"logged_user' login' $nostromoname
 			echo `{date $date} $logged_user login >[1=2]
